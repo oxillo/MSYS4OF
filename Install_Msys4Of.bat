@@ -1,15 +1,17 @@
-@echo 
+@echo off
 SETLOCAL ENABLEEXTENSIONS
 SETLOCAL ENABLEDELAYEDEXPANSION
-
 TITLE MSYS4OF : MSYS2 Installer for openFrameworks
+MODE CON: COLS=120 LINES=50
 CLS
 COLOR 02
 
 set DRIVE=%~d0
 set SRC_DIR=%~dp0
 set UNZIP="%~dp0bin\7za.exe"
-set OF_ROOT=%~dp0\..\..\..
+rem set OF_ROOT=%~dp0\..\..\..
+
+
 
 ECHO.************************************************
 ECHO.* MSYS4OF : MSYS2 installer for openFrameworks *
@@ -29,6 +31,7 @@ IF NOT EXIST "%OF_ZIP%" (
 
 SET msys2=msys64
 SET RUNSH="%MSYS4OF_DIR%\%msys2%\usr\bin\mintty.exe" -i /msys2.ico /usr/bin/bash --login
+SET SH="%MSYS4OF_DIR%\%msys2%\usr\bin\sh" --login -i
 
 
 
@@ -84,8 +87,7 @@ IF NOT EXIST %MSYS4OF_DIR%\%msys2%\usr\bin\msys-2.0.dll (
 		ECHO.exit
 	)>%MSYS4OF_DIR%\script.sh
 	
-::	%MSYS4OF_DIR%\%msys2%\usr\bin\mintty.exe -i /msys2.ico /usr/bin/bash --login %MSYS4OF_DIR%\script.sh
-	%RUNSH% %MSYS4OF_DIR%\script.sh
+	%SH% %MSYS4OF_DIR%\script.sh
 	DEL %MSYS4OF_DIR%\script.sh
 	ECHO.
 )
@@ -98,8 +100,39 @@ ECHO.Updating MSYS2...
 	ECHO.pacman --noconfirm --needed -S bash pacman pacman-mirrors msys2-runtime
 	ECHO.kill -9 -1
 )>%MSYS4OF_DIR%\script.sh
-%RUNSH% %MSYS4OF_DIR%\script.sh
+%SH% %MSYS4OF_DIR%\script.sh
 DEL %MSYS4OF_DIR%\script.sh
+ECHO.
+
+:unzip_of
+ECHO.Unzipping OF...
+
+IF EXIST "%OF_ZIP%" (
+	CALL :getDir "%OF_ZIP%" ofZipDir
+	CALL :getFile %OF_ZIP% ofZipName
+	ECHO.openFramworks will be unzipped in !WHERE! and OFDIR is !OF_DIR!
+ 	%UNZIP% x %OF_ZIP% -aoa -o!ofZipDir!
+	SET OF_HOME=!ofZipDir!!ofZipName!
+	rem Replace the trailing 'nightly' by 'release'
+	SET OF_HOME=!OF_HOME:nightly=release!
+	SET ofZipName=
+	SET ofZipDir=
+) ELSE (
+	SET OF_HOME=D:\of-git
+	CALL :toMsysPath "%OF_HOME%/" MSYS_OF_ROOT
+	(
+		ECHO.git clone "https://github.com/openframeworks/openFrameworks.git" %MSYS_OF_ROOT%
+	)>%MSYS4OF_DIR%\script.sh
+	%SH% %MSYS4OF_DIR%\script.sh
+	DEL %MSYS4OF_DIR%\script.sh
+	ECHO.
+	
+	GOTO :EOF
+)
+
+ECHO.openFramworks unzipped in %OF_HOME%
+CALL :toMsysPath "%OF_HOME%/" MSYS_OF_ROOT
+ECHO.openFramworks unzipped in %MSYS_OF_ROOT%
 ECHO.
 
 
@@ -107,42 +140,37 @@ ECHO.
 ECHO.Instaling OF Dependencies...
 (
 	ECHO.echo -ne "\033]0;OF dependencies install\007"
-	ECHO.pacman --noconfirm -S ca-certificates
-	ECHO.pacman --noconfirm -Suy --needed make mingw-w64-i686-gcc mingw-w64-i686-glew mingw-w64-i686-freeglut mingw-w64-i686-FreeImage mingw-w64-i686-opencv mingw-w64-i686-assimp mingw-w64-i686-boost mingw-w64-i686-cairo mingw-w64-i686-clang mingw-w64-i686-gdb mingw-w64-i686-zlib  mingw-w64-i686-tools mingw-w64-i686-pkg-config 
-	ECHO.pacman --noconfirm -Suy --needed tar
+	ECHO.cd %MSYS_OF_ROOT%
+	ECHO.scripts/win_cb/msys2/install_dependencies.sh
+	rem ECHO.pacman --noconfirm -S ca-certificates
+	rem ECHO.pacman --noconfirm -Suy --needed make mingw-w64-i686-gcc mingw-w64-i686-glew mingw-w64-i686-freeglut mingw-w64-i686-FreeImage mingw-w64-i686-opencv mingw-w64-i686-assimp mingw-w64-i686-boost mingw-w64-i686-cairo mingw-w64-i686-clang mingw-w64-i686-gdb mingw-w64-i686-zlib  mingw-w64-i686-tools mingw-w64-i686-pkg-config 
+	rem ECHO.pacman --noconfirm -Suy --needed tar git
 )>%MSYS4OF_DIR%\script.sh
-%RUNSH% %MSYS4OF_DIR%\script.sh
+%SH% %MSYS4OF_DIR%\script.sh
 DEL %MSYS4OF_DIR%\script.sh
 ECHO.
 
 
-:unzip_of
-ECHO.Unzipping OF...
-IF EXIST "%OF_ZIP%" (
-	CALL :getDir "%OF_ZIP%" ofZipDir
-	CALL :getFile %OF_ZIP% ofZipName
-	ECHO.openFramworks will be unzipped in !WHERE! and OFDIR is !OF_DIR!
-	%UNZIP% x %OF_ZIP% -aoa -o!ofZipDir!
-	SET OF_ROOT=!ofZipDir!!ofZipName!
-	SET ofZipName=
-	SET ofZipDir=
-) ELSE (
-	ECHO.%OF_ZIP% doesn't exist !
-	GOTO :EOF
-)
 
-ECHO.openFramworks unzipped in %OF_ROOT%
-GOTO :EOF
-ECHO.Compiling OF
+:compile_of_lib
+SET MSYSTEM=MINGW32
+ECHO.Compiling OF Library...
+
 (
-	echo.cd /d/of_installer2/of_v20150923_win_cb_release/libs/openFrameworksCompiled/project
-	echo.make -j8 
+	ECHO.echo -ne "\033]0;Compiling OF\007"
+	echo.cd %MSYS_OF_ROOT%libs/openFrameworksCompiled/project
+	echo.export ^>expo.txt
+	echo.sleep ^1
+	echo.make -j%NUMBER_OF_PROCESSORS% 2>compile.log
+	echo.sleep ^15
 )>%MSYS4OF_DIR%\script.sh
-%RUNSH% %MSYS4OF_DIR%\script.sh
+
+
+%SH% %MSYS4OF_DIR%\script.sh
 DEL %MSYS4OF_DIR%\script.sh
 ECHO.
 
-
+GOTO:EOF
 
 
 :getFile fullfilename  var 	-- return the filename only in var
@@ -167,3 +195,31 @@ set p=%~dp1
 )
 GOTO:EOF
 
+:toMsysPath winPath msysPath	-- return the msys path that correspond to winpath (C:\Windows gives /c/Windows)
+::								-- [in] winpath : The windows style path
+::								-- [out] return variable
+SETLOCAL
+REM.--function body here
+set drive=%~d1
+set drive=%drive:~0,1%
+set p=%~p1
+set p=%p:\=/%
+echo %d%
+(ENDLOCAL & REM -- RETURN VALUES
+    IF "%~2" NEQ "" SET %~2=/%drive%%p%
+)
+GOTO:EOF
+
+:tmpScript var	-- return the msys path that correspond to winpath (C:\Windows gives /c/Windows)
+::								-- [in] winpath : The windows style path
+::								-- [out] return variable
+SETLOCAL
+REM.--function body here
+set shscript=%TIME::=%
+set shscript=%shscript:,=%
+set shscript=%shscript: =%
+set shscript=tmp%shscript%.sh
+(ENDLOCAL & REM -- RETURN VALUES
+    IF "%~1" NEQ "" SET %~1=%shscript%
+)
+GOTO:EOF
